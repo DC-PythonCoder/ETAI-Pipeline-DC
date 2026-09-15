@@ -1,5 +1,8 @@
 # DIOGO CALDEIRINHA - 20231689
 
+## Week 2 Work I Did
+I ran the 2 models, logistic regression and decision tree. Changed the model from logistic regression to decision tree in the config.yaml folder and updated the README with the explanation of this week's work as well as my name and student number. From the results I got from the 2 models I can see that the logistic regression has a slightly higher precision value so it is slightly better for the purpose of this project since I want to minimize false positives, however the differences in the evaluation measures are relatively negligible for now.
+
 # Baseline Predictive Pipeline -- ETAI
 
 This is the **starting point** for your semester project: a small but *complete* predictive pipeline -- every piece a real project needs (entry point, config, data loading, preprocessing, model, evaluation), just kept as simple as possible for now.
