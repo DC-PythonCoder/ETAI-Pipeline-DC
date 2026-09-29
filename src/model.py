@@ -1,10 +1,15 @@
 """Model construction."""
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 
 _MODELS = {
     "logistic_regression": LogisticRegression,
     "decision_tree": DecisionTreeClassifier,
+    # always predicts the most frequent class -- the floor every real model must beat
+    # week 4: an ensemble of decision trees, each trained on a bootstrap sample of the rows with a
+    # random subset of features at every split; predictions are averaged. Untuned for now.
+    "random_forest": RandomForestClassifier,
 }
 
 
