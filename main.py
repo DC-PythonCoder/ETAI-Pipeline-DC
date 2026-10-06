@@ -1,20 +1,20 @@
 """
-Entry point for the baseline predictive pipeline.
+Entry point: `python main.py`.
 
-Run with:
-    python main.py
-
-This orchestrates the full (deliberately simple) pipeline:
-    load config -> load data -> preprocess -> split -> train
-    -> evaluate (train & test) -> save results
+load config -> load and clean data -> drop duplicate rows (training only) -> features/target
+-> lock the test set -> cross-validate the pipeline on the development set
+-> [if tuning is enabled: nested CV of the tuning procedure, then tuning on all development rows]
+-> out-of-fold classification and fairness reports -> refit on all development rows -> save the report
 """
+import optuna
 from sklearn.pipeline import Pipeline
 import yaml
 
 from src.data import load_data
-from src.preprocessing import build_preprocessor, clean_dataset, drop_duplicate_rows, preprocess, split_dev_test, split_features_target
-from src.model import build_model
-from src.evaluate import cross_validate_pipeline, cv_report, evaluate, fairness_report, oof_classification_report
+from src.preprocessing import clean_dataset, drop_duplicate_rows, split_features_target, split_dev_test
+from src.model import build_pipeline
+from src.evaluate import cross_validate_pipeline, cv_report, oof_classification_report, fairness_report
+from src.tuning import tune_pipeline, nested_cross_validate, tuning_report
 from src.results import save_run
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
@@ -48,16 +48,7 @@ def main():
 
     # preprocessing lives INSIDE the pipeline, so cross-validation re-fits it on the
     # training part of every fold -- the validation fold never leaks into its own preprocessing
-    pipeline = Pipeline([
-        ("prep", build_preprocessor(config["preprocessing"])),
-        ("model", build_model(config["model"])),
-    ])
-
-    pipeline.fit(X_dev, y_dev)
-
-    # predict on both splits -- train accuracy vs. test accuracy is how we'll spot overfitting, not just how "good" the model looks
-    y_train_pred = pipeline.predict(X_dev)
-    y_test_pred = pipeline.predict(X_test)
+    pipeline = build_pipeline(config["preprocessing"], config["model"])
 
      # a fixed random_state = the same folds on every run and for every model, so comparing
     # two models' fold scores is a like-for-like (paired) comparison
@@ -67,21 +58,56 @@ def main():
                          random_state=cv_config.get("random_state") if shuffle else None)
     scoring = cv_config.get("scoring", "accuracy")
 
-    # fold scores + out-of-fold predictions (each row predicted by the fold model that did NOT train on it)
-    fold_scores, y_oof = cross_validate_pipeline(
-        pipeline, X_dev, y_dev, cv, scoring, n_jobs=cv_config.get("n_jobs", 1)
-    )
+    n_jobs = cv_config.get("n_jobs", 1)
 
-    report = cv_report(fold_scores, scoring)
+    fold_scores, y_oof = cross_validate_pipeline(pipeline, X_dev, y_dev, cv, scoring, n_jobs=n_jobs)
+    header = f"Hyperparameters from config.yaml: {config['model'].get('params')}"
+    print(header)
+    report = header + "\n" + cv_report(fold_scores, scoring)
+
+    tuning_config = config.get("tuning", {})
+    tuning_enabled = tuning_config.get("enabled", False)
+    if tuning_enabled:
+        model_type = config["model"]["type"]
+        search_spaces = tuning_config.get("search_spaces") or {}
+        if model_type not in search_spaces:
+            raise ValueError(f"tuning is enabled but config.yaml has no tuning.search_spaces for "
+                             f"'{model_type}'. Add one, or set tuning.enabled: false.")
+        search_space = search_spaces[model_type]
+        n_trials = tuning_config["n_trials"]
+        tuning_seed = tuning_config["random_state"]
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        inner_cv = StratifiedKFold(n_splits=tuning_config["n_splits"], shuffle=True, random_state=tuning_seed)
+
+        # Honest estimate on the same outer folds; its out-of-fold predictions feed the reports.
+        print(f"\nNested cross-validation: {cv.get_n_splits()} outer folds x {n_trials} trials x "
+              f"{inner_cv.get_n_splits()} inner folds ...")
+        nested_scores, y_oof = nested_cross_validate(
+            pipeline, X_dev, y_dev, cv, inner_cv, scoring, search_space, n_trials, tuning_seed, n_jobs=n_jobs
+        )
+        report += "\n\nNested cross-validation (the tuning procedure, estimated honestly):\n"
+        report += cv_report(nested_scores, scoring)
+
+        # The hyperparameters that are kept: the same procedure, once, on all development rows.
+        pipeline, study = tune_pipeline(
+            pipeline, X_dev, y_dev, inner_cv, scoring, search_space, n_trials, tuning_seed, n_jobs=n_jobs
+        )
+        print()
+        report += "\n\n" + tuning_report(study, nested_scores, scoring)
+
     report += "\n\n" + oof_classification_report(y_dev, y_oof)
     report += "\n" + fairness_report(
         y_dev, y_oof, extras_dev, sensitive_attr=config["data"]["sensitive_attr"]
     )
 
-    # the model we'd actually use: same pipeline, refit on EVERY development row. CV above
-    # estimated how well this recipe does; it didn't produce a model.
-    final_model = pipeline.fit(X_dev, y_dev)
+
+    pipeline.fit(X_dev, y_dev)
+
     refit = f"Final model: {config['model']['type']} refit on all {len(X_dev)} development rows."
+
+    if tuning_enabled:
+        refit += f" Tuned hyperparameters: {study.best_params}"
+
     print(refit)
     report += "\n" + refit + "\n"
 

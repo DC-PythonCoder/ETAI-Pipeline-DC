@@ -13,6 +13,11 @@ The main metrics are accuracy, precision, recall, F1-score, false positive rate 
 
 With cross-validation, Logistic Regression performs best for this objective: validation accuracy 0.672, precision 0.68, recall 0.51, and a very small train–validation gap of 0.003. The Decision Tree has slightly lower validation accuracy (0.659) and precision (0.64) but better recall (0.54). The Random Forest has the highest recall (0.58) and F1 (0.60), but the lowest precision (0.62) and the largest gap (0.083), suggesting more overfitting. Compared with the older non-CV results, LR remains very similar in results, while the DT improves in accuracy, recall, and generalization. Also the Logistic Regression seems to have the smallest overall FPR values (considering all of the sub-values) as one in a rough estimate. Overall, the CV setup is more reliable, and LR currently looks like the most suitable model since false positives are the main concern.
 
+## Week 5 Work I Did
+This 5th week I added hyperparameter tuning to my pipeline. First I added optuna to the requirements.txt file. Then I added the tuning.py file which has the functions necessary for hyperparameter tuning. Afterwards I altered the results file to include tuning information, and the model.py file in which I added the build pipeline function. Finally I added a section in config.yaml to include the hyperparameter tuning config information for a decision tree run and I also altered the model to be a decision tree. And lastly I altered main.py file to include the tuning part and altered the build model and build preprocessor functions for a comprehensive build pipeline function.
+
+After all of this I ran the decision tree hyperparameter tuning run and got the results which were saved. I checked that the model accuracy and precision scores were very close to the last tried runs, so there was not a big improvement from hyperparameter tuning.
+
 # Baseline Predictive Pipeline -- ETAI
 
 This is the **starting point** for your semester project: a small but *complete* predictive pipeline -- every piece a real project needs (entry point, config, data loading, preprocessing, model, evaluation), just kept as simple as possible for now.
