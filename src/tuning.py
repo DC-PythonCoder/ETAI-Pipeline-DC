@@ -7,7 +7,6 @@ from sklearn.base import clone
 from sklearn.metrics import get_scorer
 from sklearn.model_selection import cross_val_score
 
-
 def tune_pipeline(pipeline, X, y, cv, scoring: str, search_space: dict, n_trials: int,
                   random_state: int, n_jobs: int = 1):
     """
@@ -37,7 +36,7 @@ def tune_pipeline(pipeline, X, y, cv, scoring: str, search_space: dict, n_trials
         return scores.mean()
 
     study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=random_state))
-    study.optimize(objective, n_trials=n_trials)
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
     best_pipeline = clone(pipeline).set_params(**study.best_params)
     return best_pipeline, study
 

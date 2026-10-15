@@ -18,6 +18,9 @@ This 5th week I added hyperparameter tuning to my pipeline. First I added optuna
 
 After all of this I ran the decision tree hyperparameter tuning run and got the results which were saved. I checked that the model accuracy and precision scores were very close to the last tried runs, so there was not a big improvement from hyperparameter tuning.
 
+## Week 6 Work I Did
+I added Two new model types in `src/model.py`: oblique random forest and AdaBoost, both registered in `_MODELS`; then I added to `config.yaml` search spaces for the three ensembles: the forests tune tree size (`max_depth`, `min_samples_leaf`) and decorrelation (`max_features` / number of combinations) but not the number of trees, AdaBoost tunes its base trees' depth, its number of rounds and its learning rate. Then I added scipy to `requirements.txt`. Afterwards I changed tuning to include a progress bar to see how quick the main file runs, and the progress, and then I changed the preprocessing file to include a add engineered features function, which I included 4 new features, after which I updated main to call this function before the split since the creation of the new features does not learn from the data. I also added a function to evaluate.py `corrected_paired_test()` which performs a corrected paired t-test to determine whether two machine learning models have significantly different performances across the same cross-validation (CV) folds.
+
 # Baseline Predictive Pipeline -- ETAI
 
 This is the **starting point** for your semester project: a small but *complete* predictive pipeline -- every piece a real project needs (entry point, config, data loading, preprocessing, model, evaluation), just kept as simple as possible for now.

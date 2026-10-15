@@ -133,6 +133,32 @@ def add_missingness_indicators(df: pd.DataFrame, mnar_indicator_sources: list) -
             out[f"{col}_was_missing"] = out[col].isna().astype(int)
     return out
 
+def add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
+    # EXAMPLE (Challenge 1). Fixed formulas only -- nothing is learned, so this is safe before the split.
+    out = df.copy()
+
+    # 1. Prior offenses relative to years of adulthood
+    out["priors_per_adult_year"] = (
+        out["priors_count"] / (out["age"] - 17).clip(lower=1)
+    )
+
+    # 2. Total juvenile offenses
+    out["total_juvenile_offenses"] = (
+        out["juv_fel_count"]
+        + out["juv_misd_count"]
+        + out["juv_other_count"]
+    )
+
+    # 3. Total prior offenses (adult + juvenile)
+    out["total_prior_offenses"] = (
+        out["priors_count"] + out["total_juvenile_offenses"]
+    )
+
+    # 4. Young adult indicator
+    out["is_young_adult"] = (out["age"] < 25).astype(int)
+
+    return out
+
 
 def split_features_target(df: pd.DataFrame, data_config: dict, mnar_indicator_sources: list):
     """
@@ -144,6 +170,7 @@ def split_features_target(df: pd.DataFrame, data_config: dict, mnar_indicator_so
     drop_columns = data_config.get("drop_columns", [])
 
     df = add_missingness_indicators(df, mnar_indicator_sources)
+    df = add_engineered_features(df)
     y = df[target] if target in df.columns else None
 
     extras_cols = [c for c in [sensitive_attr, "score_text"] if c in df.columns]
