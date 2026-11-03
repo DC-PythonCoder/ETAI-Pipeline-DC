@@ -131,6 +131,9 @@ def cross_validate_pipeline(pipeline, X, y, cv, scorers: dict, selection_metric:
 
     fold_scores["gap"] = fold_scores["train"] - fold_scores["validation"]
 
+    for name in scorers:
+        fold_scores[name] = scores[f"test_{name}"]
+
     oof_proba = np.empty(len(X))
 
     for model, val_idx in zip(scores["estimator"], scores["indices"]["test"]):

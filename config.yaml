@@ -72,6 +72,10 @@ preprocessing:
     numeric_strategy: "median"        # applies to age, juv_fel_count, juv_misd_count, juv_other_count, priors_count
     categorical_strategy: "most_frequent"   # applies to sex, age_cat, c_charge_degree
 
+feature_selection:
+  enabled: false
+  k: 8
+
 model:
   type: "naive_bayes" # logistic_regression | decision_tree | random_forest | oblique_random_forest | adaboost | naive_bayes 
   #|  gradient_boosting | hist_gradient_boosting
@@ -86,6 +90,7 @@ model:
   # oblique_random_forest:  {n_estimators: 200, n_components: 10, random_state: 42, n_jobs: -1}
   # adaboost:               {max_depth: 1, n_estimators: 200, learning_rate: 1.0, random_state: 42}
   # hist_gradient_boosting: {random_state: 42, class_weight: balanced}
+  # gradient_boosting:      {random_state: 42}
 
 tuning:
   enabled: true
@@ -99,32 +104,39 @@ tuning:
       model__max_depth: {type: int, low: 1, high: 20}
       model__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
       model__criterion: {type: categorical, choices: ["gini", "entropy"]}
+      select__k: {type: int, low: 4, high: 12}
     random_forest:
       model__max_depth: {type: int, low: 2, high: 30}
       model__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
       model__max_features: {type: categorical, choices: ["sqrt", 0.5, 1.0]}
+      select__k: {type: int, low: 4, high: 12}
     oblique_random_forest:
       model__estimator__tree__max_depth: {type: int, low: 2, high: 30}
       model__estimator__tree__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
       model__estimator__project__n_components: {type: int, low: 3, high: 10}   # <= number of features
+      select__k: {type: int, low: 10, high: 12}
     adaboost:
       model__estimator__max_depth: {type: int, low: 1, high: 8}
       model__n_estimators: {type: int, low: 25, high: 400, log: true}
       model__learning_rate: {type: float, low: 0.01, high: 1.0, log: true}
+      select__k: {type: int, low: 4, high: 12}
     gradient_boosting:
       model__n_estimators: {type: int, low: 25, high: 500, log: true}
       model__learning_rate: {type: float, low: 0.01, high: 0.5, log: true}
       model__max_depth: {type: int, low: 1, high: 6}
       model__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
       model__subsample: {type: float, low: 0.5, high: 1.0}
+      select__k: {type: int, low: 4, high: 12}
     hist_gradient_boosting:
       model__max_iter: {type: int, low: 25, high: 500, log: true}
       model__learning_rate: {type: float, low: 0.01, high: 0.5, log: true}
       model__max_leaf_nodes: {type: int, low: 2, high: 63, log: true}
       model__min_samples_leaf: {type: int, low: 5, high: 200, log: true}
       model__l2_regularization: {type: float, low: 0.000001, high: 10.0, log: true}
+      select__k: {type: int, low: 4, high: 12}
     naive_bayes:
       model__var_smoothing: {type: float, low: 0.000000000001, high: 0.1, log: true}
+      select__k: {type: int, low: 4, high: 12}
 
 output:
   results_dir: "results"   # each run's full report is saved here as a timestamped .txt file

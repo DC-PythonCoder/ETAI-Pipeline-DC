@@ -67,7 +67,14 @@ def main():
           f"{cv_config['n_splits']}-fold CV")
     print(f"Data:  {len(X_dev)} development rows   |   {len(X_test)} test rows locked away (not used)")
 
-    pipeline = build_pipeline(config["preprocessing"], config["model"])
+    fs_config = config.get("feature_selection", {})
+
+    pipeline = build_pipeline(
+        config["preprocessing"],
+        config["model"],
+        fs_config
+    )
+
     floor_pipeline = build_pipeline(config["preprocessing"], {"type": "dummy"})
     floor_scores, _ = cross_validate_pipeline(floor_pipeline, X_dev, y_dev, cv,
                                               {selection_metric: scorers[selection_metric]}, selection_metric, n_jobs)
@@ -82,6 +89,7 @@ def main():
               + f"\n\nNo-model floor (dummy, same folds): {selection_metric} = {floor:.3f}")
     final_scores = fold_scores
 
+    study = None
     tuning_config = config.get("tuning", {})
     tuning_enabled = tuning_config.get("enabled", False)
     if tuning_enabled:
@@ -89,7 +97,14 @@ def main():
         if model_type not in search_spaces:
             raise ValueError(f"tuning is enabled but config.yaml has no tuning.search_spaces for "
                              f"'{model_type}'. Add one, or set tuning.enabled: false.")
-        search_space = search_spaces[model_type]
+    
+        search_space = dict(search_spaces[model_type])
+        if not fs_config.get("enabled", False):
+            search_space = {
+                name: spec for name, spec in search_space.items()
+                if not name.startswith("select__")
+            }
+
         n_trials = tuning_config["n_trials"]
         tuning_seed = tuning_config["random_state"]
         optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -124,19 +139,41 @@ def main():
 
     pipeline.fit(X_dev, y_dev)
 
+    selector = pipeline.named_steps["select"]
+
+    if selector != "passthrough":
+        feature_names = pipeline.named_steps["prep"].get_feature_names_out()
+        selected_features = feature_names[selector.get_support()].tolist()
+
+        selection_text = (
+            f"Feature selection: ANOVA F-test, "
+            f"{len(selected_features)}/{len(feature_names)} features retained\n"
+            + "\n".join(f"  - {name}" for name in selected_features)
+        )
+
+        selected_k = selector.k
+    else:
+        selection_text = "Feature selection: disabled (all features retained)."
+        selected_k = "all"
+
+    print("\n" + selection_text)
+    report += "\n\n" + selection_text
+
     refit = f"Final model: {model_type} refit on all {len(X_dev)} development rows."
     report += "\n" + refit + "\n"
 
     row = {"run": run, "data": config["data"]["path"], "model": model_type, "tuned": tuning_enabled,
            "encoder": config["preprocessing"]["encoder"], "scaler": config["preprocessing"]["scaler"],
-           "params": str(config["model"].get("params")), "tuned_params": str(study.best_params) if tuning_enabled else "",
+           "params": str(config["model"].get("params")), "tuned_params": str(study.best_params) if study is not None else "",
            "metric": selection_metric, "mean": final_scores["validation"].mean(),
+           "fs_method": "anova_f" if selector != "passthrough" else "none",
+           "fs_k": selected_k,
            "std": final_scores["validation"].std(ddof=1), "untuned": untuned, "floor": floor,
            **{f"fold_{i}": score for i, score in enumerate(final_scores["validation"], start=1)}}
     runs = save_scores(config.get("output", {}).get("scoreboard", "results/runs.csv"), row)
     same = runs[(runs["data"] == row["data"]) & (runs["metric"] == selection_metric)]
     board = (same.sort_values("mean", ascending=False)
-             [["run", "model", "tuned", "encoder", "scaler", "mean", "std", "untuned", "floor"]]
+             [["run", "model", "tuned", "encoder", "scaler", "fs_method", "fs_k", "mean", "std", "untuned", "floor"]]
              .rename(columns={"mean": selection_metric})
              .to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     print(f"\nScoreboard (runs on the same data and metric; best first)\n{board}")

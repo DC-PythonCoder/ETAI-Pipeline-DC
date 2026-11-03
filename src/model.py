@@ -6,6 +6,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.random_projection import SparseRandomProjection
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.dummy import DummyClassifier
+from sklearn.feature_selection import SelectKBest, f_classif
 
 from src.preprocessing import build_preprocessor
 
@@ -21,15 +23,23 @@ def build_model(model_config: dict):
     return _MODELS[model_type](**params)
 
 
-def build_pipeline(preprocessing_config: dict, model_config: dict) -> Pipeline:
-    """
-    The estimator that is cross-validated, tuned and refit: preprocessing and model as one
-    Pipeline, so every learned step is re-fit on the training part of each fold. Step names
-    address hyperparameters from outside (`model__max_depth`, `prep__numeric__impute__strategy`).
-    Any new learned step (e.g. feature selection) belongs here, between "prep" and "model".
-    """
+def build_pipeline(preprocessing_config: dict, model_config: dict,
+                   feature_selection_config: dict | None = None) -> Pipeline:
+
+    fs_config = feature_selection_config or {}
+
+    selector = (
+        SelectKBest(
+            score_func=f_classif,
+            k=fs_config.get("k", 8)
+        )
+        if fs_config.get("enabled", False)
+        else "passthrough"
+    )
+
     return Pipeline([
         ("prep", build_preprocessor(preprocessing_config)),
+        ("select", selector),
         ("model", build_model(model_config)),
     ])
 
@@ -60,6 +70,7 @@ def oblique_random_forest(n_estimators: int = 100, n_components: int = 10, densi
 _MODELS = {
     "logistic_regression": LogisticRegression,
     "decision_tree": DecisionTreeClassifier,
+    "dummy": DummyClassifier,
     # always predicts the most frequent class -- the floor every real model must beat
     # week 4: an ensemble of decision trees, each trained on a bootstrap sample of the rows with a
     # random subset of features at every split; predictions are averaged. Untuned for now.

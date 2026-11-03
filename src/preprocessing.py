@@ -199,7 +199,7 @@ _ENCODERS = {
     "onehot": lambda seed: OneHotEncoder(handle_unknown="ignore", sparse_output=False),
     "ordinal": lambda seed: OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
     "count": lambda seed: CountEncoder(handle_unknown=0, handle_missing=0),
-    "target": lambda seed: TargetEncoder(target_type="binary", cv=StratifiedKFold(5, shuffle=True, random_state=seed)),
+    "target": lambda seed: TargetEncoder(target_type="binary", cv=StratifiedKFold( n_splits=5, shuffle=True, random_state=seed)),
 }
 
 def build_preprocessor(preprocessing_config: dict) -> ColumnTransformer:

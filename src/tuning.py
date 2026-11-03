@@ -20,18 +20,50 @@ def tune_pipeline(pipeline, X, y, cv, scorer: str, search_space: dict, n_trials:
     """
     def objective(trial):
         params = {}
+
+        # Sample k first, so other parameters can depend on it
+        if "select__k" in search_space:
+            spec = search_space["select__k"]
+            params["select__k"] = trial.suggest_int(
+                "select__k", spec["low"], spec["high"]
+            )
+
         for name, spec in search_space.items():
+            if name == "select__k":
+                continue
+
             if spec["type"] == "int":
-                params[name] = trial.suggest_int(name, spec["low"], spec["high"], log=spec.get("log", False))
+                high = spec["high"]
+
+                # Constrain projection dimensions to selected features
+                if name == "model__estimator__project__n_components" and "select__k" in params:
+                    high = min(high, params["select__k"])
+
+                params[name] = trial.suggest_int(
+                    name, spec["low"], high,
+                    log=spec.get("log", False)
+                )
+
             elif spec["type"] == "float":
-                params[name] = trial.suggest_float(name, spec["low"], spec["high"], log=spec.get("log", False))
+                params[name] = trial.suggest_float(
+                    name, spec["low"], spec["high"],
+                    log=spec.get("log", False)
+                )
+
             elif spec["type"] == "categorical":
-                params[name] = trial.suggest_categorical(name, spec["choices"])
+                params[name] = trial.suggest_categorical(
+                    name, spec["choices"]
+                )
+
             else:
-                raise ValueError(f"Unknown search-space type for {name}: {spec['type']}. "
-                                 "Options: int, float, categorical")
+                raise ValueError(f"Unknown search-space type: {spec['type']}")
+
         candidate = clone(pipeline).set_params(**params)
-        scores = cross_val_score(candidate, X, y, cv=cv, scoring=scorer, n_jobs=n_jobs)
+        scores = cross_val_score(
+            candidate, X, y, cv=cv,
+            scoring=scorer, n_jobs=n_jobs
+        )
+
         trial.set_user_attr("std", float(scores.std(ddof=1)))
         return scores.mean()
 
