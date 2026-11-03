@@ -28,6 +28,11 @@ I added a feature-selection step to the predictive pipeline using scikit-learn's
 
 I compared the new Naive Bayes model with and without feature selection, using Optuna hyperparameter tuning and 5-fold nested cross-validation for both configurations. With feature selection enabled, Optuna selected 6 out of 14 features using the ANOVA F-test, achieving a ROC-AUC of 0.716, compared to 0.713 without feature selection. Precision remained practically unchanged (0.747 vs. 0.748), while recall improved from 0.296 to 0.337 and F1-score increased from 0.424 to 0.464. However, the model with feature selection produced slightly more false positives (300 vs. 260). Overall, feature selection provided a small improvement in ROC-AUC and recall, but at the cost of a higher false-positive rate, which is particularly relevant to this project's objective of minimizing false positives. Since the ROC-AUC difference is small, further comparisons would be needed to establish whether the improvement is statistically meaningful.
 
+## Week 8 Work I Did (feature selection I already added in week 7 2nd part commit)
+Added **XGBoost** (`XGBClassifier`) as a new model option, supporting regularisation, parallel processing, and native missing-value handling, with hyperparameters configured in `config.yaml`.
+
+The tuned **XGBoost model with ANOVA F-test feature selection** achieved a ROC-AUC of **0.726**, outperforming Naive Bayes (0.716). It retained 8 of 14 features and showed minimal overfitting. More importantly, given the objective of **minimising false positives**, XGBoost achieved an overall false positive rate of **20.9%** (663 false positives), substantially below COMPAS's reported rates for several demographic groups. However, the false positive rate remains notably higher for African-American individuals (29%) than for Caucasian individuals (15%). Overall, XGBoost improves predictive discrimination, but further threshold optimisation is recommended to reduce false positives, potentially at the expense of recall.
+
 
 # Baseline Predictive Pipeline -- ETAI
 

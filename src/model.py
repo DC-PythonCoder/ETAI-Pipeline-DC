@@ -8,6 +8,7 @@ from sklearn.random_projection import SparseRandomProjection
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.dummy import DummyClassifier
 from sklearn.feature_selection import SelectKBest, f_classif
+from xgboost import XGBClassifier
 
 from src.preprocessing import build_preprocessor
 
@@ -80,4 +81,5 @@ _MODELS = {
     "gradient_boosting": GradientBoostingClassifier,
     "hist_gradient_boosting": HistGradientBoostingClassifier,
     "naive_bayes": GaussianNB,
+    "xgboost": XGBClassifier,
 }
