@@ -33,6 +33,35 @@ Added **XGBoost** (`XGBClassifier`) as a new model option, supporting regularisa
 
 The tuned **XGBoost model with ANOVA F-test feature selection** achieved a ROC-AUC of **0.726**, outperforming Naive Bayes (0.716). It retained 8 of 14 features and showed minimal overfitting. More importantly, given the objective of **minimising false positives**, XGBoost achieved an overall false positive rate of **20.9%** (663 false positives), substantially below COMPAS's reported rates for several demographic groups. However, the false positive rate remains notably higher for African-American individuals (29%) than for Caucasian individuals (15%). Overall, XGBoost improves predictive discrimination, but further threshold optimisation is recommended to reduce false positives, potentially at the expense of recall.
 
+#### Week 9 Work I Did - Beyond COMPAS
+
+This week, I adapted my existing predictive pipeline to work with a new dataset, Adult Income, which predicts whether someone earns more than $50,000 per year. I created separate `main_adult.py` and `config_adult.yaml` files so the original COMPAS pipeline could remain unchanged. I also added both Adult datasets to the `data/` folder and configured a separate `results/adult/` output directory. Besides I also added in the `preprocessing.py` and `evaluate.py` files, at the end, some specific altered functions that are more general and not COMPAS-specific, allowing me to call in the new main file these functions instead of the COMPAS-specific ones, whenever necessary.
+
+**What broke, why, and how I fixed it:**
+
+| Problem | Cause | Solution |
+|---|---|---|
+| Feature engineering | Existing formulas required COMPAS-specific columns. | Made feature engineering optional through the config. |
+| Missing values | Categorical `?` placeholders were not converted to missing values. | Added configurable categorical placeholder cleaning. |
+| Duplicate removal | Cleaning could remove rows from the prediction dataset. | Made deduplication optional and retained it for training only. |
+| Fairness evaluation | The report always expected COMPAS's `score_text` column. | Made comparison with an external score optional and evaluated FPR by `sex`. |
+| New data prediction | The pipeline previously only evaluated labelled observations. | Added inference using the fitted pipeline and exported predictions to CSV. |
+
+I excluded `sex` and `race` from the input features, using `sex` for the fairness evaluation. I also removed `id`, `fnlwgt`, and the redundant `education` column. I kept all 25 anonymised `v` variables and added missingness indicators for `workclass` and `occupation`, allowing feature selection to determine their usefulness.
+
+**Results (5-fold CV, without tuning):**
+
+| Model | ROC-AUC | Accuracy | F1 |
+|---|---:|---:|---:|
+| XGBoost + Feature Selection + Tuning | **0.910** | **0.859** | **0.671** |
+| Required | ≥ 0.900 | ≥ 0.855 | ≥ 0.660 |
+
+XGBoost achieved all three target scores, retaining 12 of the 37 available features through feature selection.
+
+**How to run:** `python main_adult.py`
+
+**Predictions:** `results/adult/adult_predictions.csv`
+
 
 # Baseline Predictive Pipeline -- ETAI
 

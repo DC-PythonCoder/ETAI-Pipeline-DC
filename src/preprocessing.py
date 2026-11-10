@@ -194,7 +194,6 @@ from sklearn.impute import SimpleImputer
 # ---- src/preprocessing.py -- identical to the pipeline ----
 _SCALERS = {"none": "passthrough", "standard": StandardScaler, "minmax": MinMaxScaler, "robust": RobustScaler}
 
-
 _ENCODERS = {
     "onehot": lambda seed: OneHotEncoder(handle_unknown="ignore", sparse_output=False),
     "ordinal": lambda seed: OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
@@ -255,3 +254,75 @@ def split_dev_test(X, y, extras, test_size: float, random_state: int):
         X, y, extras, test_size=test_size, random_state=random_state, stratify=y
     )
     return X_dev, X_test, y_dev, y_test, extras_dev, extras_test
+
+
+
+################################################################################################################################################################################
+                                                                     #Functions specific to the Adult dataset
+################################################################################################################################################################################
+
+def clean_dataset_adult(df: pd.DataFrame, diagnostics_config: dict) -> pd.DataFrame:
+    """
+    Applies this week's diagnosis: category cleanup, domain-rule/placeholder -> NaN
+    conversion, de-duplication, and redundant-column removal. Target-agnostic -- safe
+    to call on label-free inference data, since none of this depends on a target column.
+    """
+    out = df.copy()
+    placeholder_tokens = set(diagnostics_config.get("placeholder_tokens", []))
+
+    # numeric columns that load as text purely because of a placeholder token
+    for col in diagnostics_config.get("numeric_text_columns", []):
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col].replace(list(placeholder_tokens), np.nan), errors="coerce")
+
+    for col in diagnostics_config.get("placeholder_columns", []):
+        if col in out.columns:
+            out[col] = out[col].map(
+                lambda v: v.strip() if isinstance(v, str) else v
+            )
+            out[col] = out[col].replace(
+                list(placeholder_tokens), np.nan
+            )
+
+    flag_invalid_values(out, diagnostics_config.get("validity_rules", {}))
+
+    out = _canonicalize_categories(out, diagnostics_config.get("canonical_categories", {}), placeholder_tokens)
+
+    if diagnostics_config.get("deduplicate", True):
+        out = out.drop_duplicates()
+
+        id_column = diagnostics_config.get("id_column")
+        if id_column and id_column in out.columns:
+            out = out.drop_duplicates(
+                subset=id_column, keep="first"
+            )
+
+    columns_to_drop = [c for c in diagnostics_config.get("redundant_columns", []) if c in out.columns]
+    out = out.drop(columns=columns_to_drop)
+
+    return out
+
+
+def split_features_target_adult(df: pd.DataFrame, data_config: dict, mnar_indicator_sources: list):
+    """
+    Returns (X, y, extras). `y` is `None` and `extras` has no target column when called
+    on label-free inference data -- nothing downstream requires the target to be present. Skip COMPAS specific engineered features, since they don't make sense for Adult.
+    """
+    target = data_config["target"]
+    sensitive_attr = data_config["sensitive_attr"]
+    drop_columns = data_config.get("drop_columns", [])
+
+    df = add_missingness_indicators(df, mnar_indicator_sources)
+
+    if data_config.get("add_engineered_features", True):
+        df = add_engineered_features(df)
+    
+    y = df[target] if target in df.columns else None
+
+    extras_cols = [c for c in [sensitive_attr, "score_text"] if c in df.columns]
+    extras = df[extras_cols].copy() if extras_cols else None
+
+    always_drop = set(drop_columns) | {target, sensitive_attr}
+    feature_cols = [c for c in df.columns if c not in always_drop]
+    X = df[feature_cols]
+    return X, y, extras

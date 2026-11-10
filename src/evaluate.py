@@ -139,3 +139,70 @@ def cross_validate_pipeline(pipeline, X, y, cv, scorers: dict, selection_metric:
     for model, val_idx in zip(scores["estimator"], scores["indices"]["test"]):
         oof_proba[val_idx] = model.predict_proba(X.iloc[val_idx])[:, 1]
     return fold_scores, oof_proba
+
+
+################################################################################################################################################################################
+                                                                     #Functions specific to the Adult dataset
+################################################################################################################################################################################
+
+def fairness_report_adult(
+    y_true,
+    oof_proba,
+    extras: pd.DataFrame,
+    sensitive_attr: str = "race",
+    threshold: float = 0.5,
+    reference_column: str | None = "score_text",
+    reference_negative_value: str = "Low",
+    reference_label: str = "COMPAS's own score",
+    outcome_label: str = "reoffend",
+) -> str:
+
+    df = extras.copy()
+    df[sensitive_attr] = (
+        df[sensitive_attr].astype(object).fillna("unknown")
+    )
+
+    df["y_true"] = np.asarray(y_true)
+    df["y_pred_model"] = (
+        np.asarray(oof_proba) >= threshold
+    ).astype(int)
+
+    lines = [
+        f"False positive rate by {sensitive_attr} "
+        f"(development set, out-of-fold)",
+        f"(share of people who did NOT {outcome_label}, "
+        f"but were predicted to)",
+        "",
+    ]
+
+    comparisons = [("Our model", "y_pred_model")]
+
+    if reference_column and reference_column in df.columns:
+        df["y_pred_reference"] = (
+            df[reference_column] != reference_negative_value
+        ).astype(int)
+
+        comparisons.append(
+            (reference_label, "y_pred_reference")
+        )
+
+    for label, col in comparisons:
+        lines.append(f"  {label}:")
+
+        for group, g in df.groupby(sensitive_attr):
+            negatives = g[g["y_true"] == 0]
+
+            if len(negatives) == 0:
+                continue
+
+            fpr = (negatives[col] == 1).mean()
+
+            lines.append(
+                f"    {str(group):<20s} "
+                f"FPR = {fpr:.2f}  "
+                f"(n={len(negatives)})"
+            )
+
+        lines.append("")
+
+    return "\n".join(lines)
